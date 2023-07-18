@@ -3,5 +3,6 @@
 .trash
 images/
 done/
+timer
 __pycache__/
 pen_sample.py

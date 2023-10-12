@@ -1,8 +1,8 @@
 from bot import DataBaseHandler
 from bot import ImageHandler
 
-db = DataBaseHandler()
 images = ImageHandler()
+db = DataBaseHandler(images)
 
 db.sync_db()
 

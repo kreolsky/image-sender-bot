@@ -85,9 +85,10 @@ class ImageHandler:
 
 
 class DataBaseHandler:
-    def __init__(self):
-        self.images = ImageHandler()
+    def __init__(self, images):
+        self.images = images
         self.create_table()
+        self.sync_db()
 
     def create_table(self):
         # Создать таблицу для хранения метаданных изображений
@@ -164,7 +165,7 @@ class DataBaseHandler:
 
 
 class MyBot:
-    def __init__(self, token, images, db):
+    def __init__(self, images, db, token=Config.TOKEN):
         self.request = Request(con_pool_size=8)
         self.bot = Bot(token, request=self.request)
         self.updater = Updater(bot=self.bot, use_context=True)
@@ -313,8 +314,7 @@ class MyBot:
 
 if __name__ == '__main__':
     images = ImageHandler()
-    db = DataBaseHandler()
-    db.sync_db()
+    db = DataBaseHandler(images)
 
-    bot = MyBot(Config.TOKEN, images, db)
+    bot = MyBot(images, db)
     bot.run()

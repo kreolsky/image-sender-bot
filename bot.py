@@ -132,11 +132,11 @@ class DataBaseHandler:
     def sync_db(self):
         # Получить список всех файлов в директории IMG_DIR
         directory_files = self.images.get_all_images()
-        logging.info(f"SYNC: Images in directory: '{', '.join(directory_files)}'")
+        # logging.info(f"SYNC: Images in directory: '{', '.join(directory_files)}'")
 
         # Получить список файлов из базы данных
         db_files = self.get_all_images()
-        logging.info(f"SYNC: Images in db: '{', '.join(db_files)}'")
+        # logging.info(f"SYNC: Images in db: '{', '.join(db_files)}'")
 
         # Определить новые файлы, которые есть в директории, но отсутствуют в базе данных
         new_files = [x for x in directory_files if x not in db_files]
@@ -154,7 +154,7 @@ class DataBaseHandler:
         missing_files = [x for x in db_files if x not in directory_files]
 
         # Удалить отсутствующие файлы из базы данных
-        # По идее, оно никода не понадобится!
+        # Пригождается когда файлы удаляются руками
         if missing_files:
             logging.info(f"SYNC: Remove images from db: '{', '.join(missing_files)}'")
             self.remove_images(missing_files)
@@ -190,12 +190,6 @@ class MyBot:
 
     def send_images(self, filename):
         images_to_send = self.db.sync_db_and_get_group(filename)
-        # Костыль! Иногда база не успевает обновиться
-        # Можно удалять!
-        # if not images_to_send:
-        #     logging.info(f"images_to_send is empty :( filename: {filename}")
-        #     return
-
         logging.info(f"Images group based on '{filename}': '{', '.join(images_to_send)}'")
 
         try:

@@ -81,12 +81,13 @@ class ImageHandler:
             return os.path.basename(min_images)
 
     def get_all_images(self):
-        return (i.name for i in os.scandir(self.dir) if i.is_file() and i.name.endswith('.png'))
+        return [i.name for i in os.scandir(self.dir) if i.is_file() and i.name.endswith('.png')]
 
 
 class DataBaseHandler:
     def __init__(self):
         self.images = ImageHandler()
+        self.create_table()
 
     def create_table(self):
         # Создать таблицу для хранения метаданных изображений
@@ -98,8 +99,7 @@ class DataBaseHandler:
     def connection(self):
         return sqlite3.connect(Config.DB_FILENAME)
 
-    def add_images_prompt(self, data):
-        # Добавить метаданные изображений в базу данных
+    def add_images(self, data):
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.executemany('INSERT INTO images (filename, prompt) VALUES (?, ?)', data)
@@ -115,38 +115,47 @@ class DataBaseHandler:
 
     def remove_images(self, filenames):
         # Удалить изображения из базы данных
+        logging.info(f"Remove images from db after sending: '{', '.join(filenames)}'")
         filenames = [(f,) for f in filenames]
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.executemany('DELETE FROM images WHERE filename = ?', filenames)
             conn.commit()
+    
+    def get_all_images(self):
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT filename FROM images')
+            return [r[0] for r in cursor.fetchall()]
 
     def sync_db(self):
         # Получить список всех файлов в директории IMG_DIR
         directory_files = self.images.get_all_images()
+        logging.info(f"SYNC: Images in directory: '{', '.join(directory_files)}'")
 
         # Получить список файлов из базы данных
-        with self.connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT filename FROM images')
-            db_files = [r[0] for r in cursor.fetchall()]
+        db_files = self.get_all_images()
+        logging.info(f"SYNC: Images in db: '{', '.join(db_files)}'")
 
         # Определить новые файлы, которые есть в директории, но отсутствуют в базе данных
-        new_files = list(set(directory_files) - set(db_files))
+        new_files = [x for x in directory_files if x not in db_files]
+        logging.info(f"SYNC: Add images to db: '{', '.join(new_files)}'")
 
         # Добавить новые файлы в базу данных
-        files_metadata = []
+        images_metadata = []
         for filename in new_files:
             prompt = self.images.get_prompt(filename)
-            files_metadata.append((filename, prompt))
+            images_metadata.append((filename, prompt))
 
-        self.add_images_prompt(files_metadata)
+        self.add_images(images_metadata)
 
         # Определить файлы, которые есть в базе данных, но отсутствуют в директории
-        missing_files = list(set(db_files) - set(directory_files))
+        missing_files = [x for x in db_files if x not in directory_files]
 
         # Удалить отсутствующие файлы из базы данных
+        # По идее, оно никода не понадобится!
         if missing_files:
+            logging.info(f"SYNC: Remove images from db: '{', '.join(missing_files)}'")
             self.remove_images(missing_files)
 
     def sync_db_and_get_group(self, filename):
@@ -155,20 +164,18 @@ class DataBaseHandler:
 
 
 class MyBot:
-    def __init__(self, token):
+    def __init__(self, token, images, db):
         self.request = Request(con_pool_size=8)
         self.bot = Bot(token, request=self.request)
         self.updater = Updater(bot=self.bot, use_context=True)
         self.config = Config()
-        self.db = DataBaseHandler()
-        self.images = ImageHandler()
+        self.images = images
+        self.db = db
 
         # Message handler for all messages that are not commands
         self.updater.dispatcher.add_handler(MessageHandler(~Filters.command, self.handle_bot_messages))  
         # Command "/instant" handler
         self.updater.dispatcher.add_handler(CommandHandler('instant', self.handle_instant_image))
-        # Sync db
-        self.db.sync_db()
 
     def run(self):
         self.updater.start_polling()
@@ -183,8 +190,10 @@ class MyBot:
     def send_images(self, filename):
         images_to_send = self.db.sync_db_and_get_group(filename)
         # Костыль! Иногда база не успевает обновиться
-        if not images_to_send:
-            return
+        # Можно удалять!
+        # if not images_to_send:
+        #     logging.info(f"images_to_send is empty :( filename: {filename}")
+        #     return
         
         logging.info(f"Images group based on '{filename}': '{', '.join(images_to_send)}'")
 
@@ -218,13 +227,17 @@ class MyBot:
 
     @restrict_access
     def handle_instant_image(self, update: Update, context: CallbackContext):
+        logging.info(f"Command '/instant' received.")
+
         if context.args:
-            filename = os.path.join(self.config.IMG_DIR, context.args[0])
+            filename = str(context.args[0])
         else:
             filename = self.images.get_oldest_image()
 
-        logging.info(f"Command /instant received. Sending {filename}")
-        if filename is None or not os.path.exists(filename):
+        logging.info(f"Instant Sending: {filename}")
+
+        filepath = os.path.join(self.config.IMG_DIR, filename)
+        if filename is None or not os.path.exists(filepath):
             update.effective_message.reply_text("No image available.")
             return
 
@@ -240,8 +253,8 @@ class MyBot:
             first_sent_image = sent_images[0]
 
             # Приложить оригиналы картинок в комментарии
-            for filepath in sent_images:
-                filepath = os.path.join(self.config.IMG_DIR, filepath)
+            for filename in sent_images:
+                filepath = os.path.join(self.config.IMG_DIR, filename)
                 with open(filepath, 'rb') as file:
                     message.reply_document(file)
             
@@ -299,5 +312,9 @@ class MyBot:
 
 
 if __name__ == '__main__':
-    bot = MyBot(Config.TOKEN)
+    images = ImageHandler()
+    db = DataBaseHandler()
+    db.sync_db()
+
+    bot = MyBot(Config.TOKEN, images, db)
     bot.run()

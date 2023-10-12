@@ -1,5 +1,6 @@
 import os
 import shutil
+import glob
 import time
 import json
 import logging
@@ -81,7 +82,9 @@ class ImageHandler:
             return os.path.basename(min_images)
 
     def get_all_images(self):
-        return [i.name for i in os.scandir(self.dir) if i.is_file() and i.name.endswith('.png')]
+        filepaths = glob.glob(os.path.join(self.dir, '*.png'))
+        filenames = [os.path.basename(file) for file in filepaths]
+        return filenames
 
 
 class DataBaseHandler:
@@ -107,12 +110,20 @@ class DataBaseHandler:
             conn.commit()
 
     def get_image_group(self, filename):
-        # Get all images with the same prompt
+        # Взять группу картинок по промпту картинки запроса
+        # Промпт картинки запроса берется из файла
         prompt = self.images.get_prompt(filename)
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT filename FROM images WHERE prompt = ?', (prompt,))
             return [i[0] for i in cursor.fetchall()]
+
+    def get_prompt(self, filename):
+        # Взять промпт для картинки по имени
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT prompt FROM images WHERE filename = ?', (filename,))
+            return cursor.fetchall()[0][0]
 
     def remove_images(self, filenames):
         # Удалить изображения из базы данных
@@ -124,6 +135,7 @@ class DataBaseHandler:
             conn.commit()
 
     def get_all_images(self):
+        # Забрать все имена файлов из базы данных
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT filename FROM images')

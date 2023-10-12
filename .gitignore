@@ -5,5 +5,4 @@ images/
 done/
 tmp/*
 __pycache__/
-pen_sample_*
 *.log

@@ -60,7 +60,7 @@ class ImageHandler:
     def get_metadata(self, filename, item=Config.META_TAG):
         # Убедиться что пришло только имя файла
         # filename = os.path.basename(filename)
-        
+
         filename = os.path.join(self.dir, filename)
         with Image.open(filename) as im:
             metadata = im.info
@@ -122,7 +122,7 @@ class DataBaseHandler:
             cursor = conn.cursor()
             cursor.executemany('DELETE FROM images WHERE filename = ?', filenames)
             conn.commit()
-    
+
     def get_all_images(self):
         with self.connection() as conn:
             cursor = conn.cursor()
@@ -174,7 +174,7 @@ class MyBot:
         self.db = db
 
         # Message handler for all messages that are not commands
-        self.updater.dispatcher.add_handler(MessageHandler(~Filters.command, self.handle_bot_messages))  
+        self.updater.dispatcher.add_handler(MessageHandler(~Filters.command, self.handle_bot_messages))
         # Command "/instant" handler
         self.updater.dispatcher.add_handler(CommandHandler('instant', self.handle_instant_image))
 
@@ -195,7 +195,7 @@ class MyBot:
         # if not images_to_send:
         #     logging.info(f"images_to_send is empty :( filename: {filename}")
         #     return
-        
+
         logging.info(f"Images group based on '{filename}': '{', '.join(images_to_send)}'")
 
         try:
@@ -258,7 +258,7 @@ class MyBot:
                 filepath = os.path.join(self.config.IMG_DIR, filename)
                 with open(filepath, 'rb') as file:
                     message.reply_document(file)
-            
+
             # Добавить метадату в комментарий к картинке
             message.reply_text(self.images.get_metadata(first_sent_image))
             # metadata = json.dumps(ImageHandler.get_metadata(first_sent_image))

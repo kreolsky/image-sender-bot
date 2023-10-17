@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import glob
 import time
@@ -71,9 +72,14 @@ class ImageHandler:
         return metadata
 
     # ВЫНЕСТИ 'sd-metadata' в Config!
-    def get_prompt(self, filename):
+    def get_prompt(self, filename, strip=False):
         metadata = self.get_metadata(filename, item='sd-metadata')
-        return json.loads(metadata)['image']['prompt']
+        prompt = json.loads(metadata)['image']['prompt']
+
+        if strip:
+            return re.sub(r'\s+', '', prompt)
+
+        return prompt 
 
     def get_oldest_image(self):
         images = [os.path.join(self.dir, i) for i in self.get_all_images()]
@@ -112,7 +118,7 @@ class DataBaseHandler:
     def get_image_group(self, filename):
         # Взять группу картинок по промпту картинки запроса
         # Промпт картинки запроса берется из файла
-        prompt = self.images.get_prompt(filename)
+        prompt = self.images.get_prompt(filename, strip=True)
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT filename FROM images WHERE prompt = ?', (prompt,))
@@ -157,7 +163,7 @@ class DataBaseHandler:
         # Добавить новые файлы в базу данных
         images_metadata = []
         for filename in new_files:
-            prompt = self.images.get_prompt(filename)
+            prompt = self.images.get_prompt(filename, strip=True)
             images_metadata.append((filename, prompt))
 
         self.add_images(images_metadata)
